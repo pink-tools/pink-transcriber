@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pink-transcriber"
+version = "1.0.0"
+description = "Speech-to-text server with automatic backend detection (MPS/CUDA/CPU)"
+license = {text = "MIT"}
+requires-python = ">=3.10,<3.13"
+
+dependencies = [
+    "setproctitle>=1.3.0",
+    "psutil>=6.1.0",
+]
+
+[project.optional-dependencies]
+mps = [
+    "nemo_toolkit[asr]==2.5.0",
+    "torch==2.9.0",
+    "soundfile==0.13.1",
+]
+cuda = [
+    "faster-whisper",
+    "torch",
+    "ctranslate2",
+    "nvidia-cudnn-cu12; sys_platform == 'linux'",
+    "nvidia-cublas-cu12; sys_platform == 'linux'",
+]
+cpu = [
+    "faster-whisper",
+    "ctranslate2",
+]
+
+[project.scripts]
+pink-transcriber = "pink_transcriber.cli.client:main"
+pink-transcriber-server = "pink_transcriber.cli.server:cli_main"
+
+[project.urls]
+Repository = "https://github.com/pink-tools/pink-transcriber"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

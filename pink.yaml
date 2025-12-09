@@ -1,0 +1,41 @@
+name: pink-transcriber
+type: daemon
+claude_module: TRANSCRIBER.md
+
+install:
+  unix: |
+    export UV_HTTP_TIMEOUT=86400
+    export UV_REQUEST_TIMEOUT=86400
+    if [[ $(uname -m) == "arm64" && $(uname) == "Darwin" ]]; then
+      backend="mps"
+      python_version="3.12"
+    elif nvidia-smi &>/dev/null; then
+      backend="cuda"
+      python_version="3.11"
+    else
+      backend="cpu"
+      python_version="3.11"
+    fi
+    echo "Backend: $backend"
+    echo "$backend" > .backend
+    uv venv --python $python_version --clear
+    uv pip install -e ".[$backend]"
+    sudo ln -sf $(pwd)/.venv/bin/pink-transcriber /usr/local/bin/
+    sudo ln -sf $(pwd)/.venv/bin/pink-transcriber-server /usr/local/bin/
+  windows: |
+    $env:UV_HTTP_TIMEOUT=86400
+    $env:UV_REQUEST_TIMEOUT=86400
+    $backend = "cpu"
+    if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) { $backend = "cuda" }
+    Write-Host "Backend: $backend"
+    $backend | Out-File -FilePath .backend -Encoding ascii -NoNewline
+    uv venv --python 3.11 --clear
+    uv pip install -e ".[$backend]"
+    Copy-Item .venv\Scripts\pink-transcriber.exe $env:USERPROFILE\bin\
+    Copy-Item .venv\Scripts\pink-transcriber-server.exe $env:USERPROFILE\bin\
+
+run: |
+  pink-transcriber-server
+
+health: |
+  pink-transcriber --health
