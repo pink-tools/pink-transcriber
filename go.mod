@@ -3,7 +3,7 @@ module github.com/pink-tools/pink-transcriber
 go 1.25.4
 
 require (
-	github.com/pink-tools/pink-otel v1.5.0
+	github.com/pink-tools/pink-otel v1.5.1
 	golang.org/x/sys v0.39.0
 )
 
