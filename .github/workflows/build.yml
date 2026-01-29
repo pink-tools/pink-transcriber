@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - name: build-macos
+            goos: darwin
+            goarch: arm64
+            output: pink-transcriber-darwin-arm64
+          - name: build-linux
+            goos: linux
+            goarch: amd64
+            output: pink-transcriber-linux-amd64
+          - name: build-windows
+            goos: windows
+            goarch: amd64
+            output: pink-transcriber-windows-amd64.exe
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Build
+        run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-X main.version=${GITHUB_REF_NAME#v}" -o ${{ matrix.output }} ./cmd/pink-transcriber
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output }}
+          path: ${{ matrix.output }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: pink-transcriber ${{ github.ref_name }}
+          body_path: RELEASE_NOTES.md
+          files: dist/*
+          make_latest: true
