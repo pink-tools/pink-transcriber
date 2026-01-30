@@ -68,7 +68,7 @@ Supported formats: any audio format (converted via ffmpeg)`,
 	}, func(ctx context.Context) error {
 		// Bootstrap whisper binary and model
 		if err := bootstrap.EnsureReady(); err != nil {
-			otel.Error(ctx, "bootstrap failed", map[string]any{"error": err.Error()})
+			otel.Error(ctx, "bootstrap failed", otel.Attr{"error", err.Error()})
 			return err
 		}
 

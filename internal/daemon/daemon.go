@@ -32,7 +32,7 @@ func Run(ctx context.Context, whisperDir string) error {
 		return fmt.Errorf("start pink-whisper: %w", err)
 	}
 
-	otel.Info(ctx, "whisper started", map[string]any{"pid": cmd.Process.Pid, "port": port})
+	otel.Info(ctx, "whisper started", otel.Attr{"pid", cmd.Process.Pid}, otel.Attr{"port", port})
 
 	// Wait for server to be ready
 	waitForServer()

@@ -2,6 +2,10 @@ module github.com/pink-tools/pink-transcriber
 
 go 1.25.4
 
+replace github.com/pink-tools/pink-otel => ../pink-otel
+
+replace github.com/pink-tools/pink-core => ../pink-core
+
 require (
 	github.com/pink-tools/pink-otel v1.5.1
 	golang.org/x/sys v0.39.0
