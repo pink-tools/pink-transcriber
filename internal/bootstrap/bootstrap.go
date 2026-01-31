@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/pink-tools/pink-core"
 )
 
 const (
@@ -20,10 +22,7 @@ const (
 )
 
 func GetWhisperDir() string {
-	home, _ := os.UserHomeDir()
-	dir := filepath.Join(home, "pink-tools", "pink-whisper")
-	os.MkdirAll(dir, 0755)
-	return dir
+	return core.ServiceDir("pink-whisper")
 }
 
 func EnsureReady() error {

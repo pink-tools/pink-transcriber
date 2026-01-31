@@ -3,10 +3,10 @@
 Speech-to-text via whisper.cpp (Whisper Large V3)
 
 ```bash
-pink-transcriber                 # Start daemon (bootstraps on first run)
-pink-transcriber transcribe FILE # Transcribe audio file
-pink-transcriber status          # Check if running
-pink-transcriber stop            # Stop daemon
+/Users/pink-tools/pink-transcriber/pink-transcriber                 # Start daemon (bootstraps on first run)
+/Users/pink-tools/pink-transcriber/pink-transcriber transcribe FILE # Transcribe audio file
+/Users/pink-tools/pink-transcriber/pink-transcriber status          # Check if running
+/Users/pink-tools/pink-transcriber/pink-transcriber stop            # Stop daemon
 ```
 
-**Data:** `~/pink-tools/pink-transcriber/`, `~/pink-tools/pink-whisper/` (server + model)
+**Data:** `/Users/pink-tools/pink-transcriber/`, `/Users/pink-tools/pink-whisper/` (server + model)
