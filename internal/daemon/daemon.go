@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -8,25 +9,24 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
-	"time"
+	"strings"
 
 	"github.com/pink-tools/pink-otel"
 )
 
-const port = 7465
-
-// Run starts pink-whisper server and blocks until ctx is cancelled
-func Run(ctx context.Context, whisperDir string) error {
+func Run(ctx context.Context, whisperDir, port string) error {
 	whisperPath := filepath.Join(whisperDir, whisperBinary())
 	modelPath := filepath.Join(whisperDir, "ggml-large-v3.bin")
+	serverAddr := "127.0.0.1:" + port
 
-	cmd := exec.Command(whisperPath, "-m", modelPath, "-p", strconv.Itoa(port))
+	cmd := exec.Command(whisperPath, "-m", modelPath, "-p", port)
 	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard // suppress whisper internal logs
-
-	// Set process group for cleanup
 	setProcessGroup(cmd)
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("stderr pipe: %w", err)
+	}
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start pink-whisper: %w", err)
@@ -34,17 +34,33 @@ func Run(ctx context.Context, whisperDir string) error {
 
 	otel.Info(ctx, "whisper started", otel.Attr{"pid", cmd.Process.Pid}, otel.Attr{"port", port})
 
-	// Wait for server to be ready
-	waitForServer()
+	ready := make(chan struct{})
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), "listening on port") {
+				close(ready)
+				io.Copy(io.Discard, stderr)
+				return
+			}
+		}
+	}()
+
+	<-ready
+
+	conn, err := net.Dial("tcp", serverAddr)
+	if err != nil {
+		return fmt.Errorf("whisper not accepting connections: %w", err)
+	}
+	conn.Close()
+
 	otel.Info(ctx, "whisper ready")
 
-	// Wait for process exit in goroutine
 	procDone := make(chan error, 1)
 	go func() {
 		procDone <- cmd.Wait()
 	}()
 
-	// Wait for either context cancellation or process exit
 	select {
 	case <-ctx.Done():
 		otel.Info(ctx, "stopping whisper")
@@ -63,15 +79,4 @@ func whisperBinary() string {
 		return "pink-whisper.exe"
 	}
 	return "pink-whisper"
-}
-
-func waitForServer() {
-	for i := 0; i < 100; i++ {
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 100*time.Millisecond)
-		if err == nil {
-			conn.Close()
-			return
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
 }

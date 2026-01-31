@@ -19,7 +19,6 @@ const (
 	modelURL       = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin"
 )
 
-// GetWhisperDir returns the directory where pink-whisper is installed
 func GetWhisperDir() string {
 	home, _ := os.UserHomeDir()
 	dir := filepath.Join(home, "pink-tools", "pink-whisper")
@@ -32,7 +31,6 @@ func EnsureReady() error {
 	whisperPath := filepath.Join(whisperDir, whisperBinary())
 	modelPath := filepath.Join(whisperDir, "ggml-large-v3.bin")
 
-	// Check pink-whisper
 	if _, err := os.Stat(whisperPath); os.IsNotExist(err) {
 		fmt.Println("pink-whisper not found, downloading...")
 		if err := downloadWhisper(whisperDir); err != nil {
@@ -41,7 +39,6 @@ func EnsureReady() error {
 		fmt.Println("pink-whisper ready")
 	}
 
-	// Check model
 	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
 		fmt.Println("model not found, downloading (~3GB)...")
 		if err := downloadFile(modelURL, modelPath); err != nil {
@@ -50,10 +47,8 @@ func EnsureReady() error {
 		fmt.Println("model ready")
 	}
 
-	// Ensure executable
 	os.Chmod(whisperPath, 0755)
 
-	// macOS: remove quarantine
 	if runtime.GOOS == "darwin" {
 		exec.Command("xattr", "-d", "com.apple.quarantine", whisperPath).Run()
 	}
@@ -72,14 +67,12 @@ func downloadWhisper(whisperDir string) error {
 	artifact := getArtifactName()
 	url := whisperRelease + "/" + artifact
 
-	// Download archive
 	tmpFile := filepath.Join(whisperDir, artifact)
 	if err := downloadFile(url, tmpFile); err != nil {
 		return err
 	}
 	defer os.Remove(tmpFile)
 
-	// Extract
 	if strings.HasSuffix(artifact, ".zip") {
 		return extractZip(tmpFile, whisperDir)
 	}
@@ -127,11 +120,11 @@ func downloadFile(url, dest string) error {
 	}
 	defer out.Close()
 
-	// Progress tracking (every 5%)
 	size := resp.ContentLength
 	var written int64
 	var lastPct int
 	buf := make([]byte, 32*1024)
+
 	for {
 		n, err := resp.Body.Read(buf)
 		if n > 0 {

@@ -6,19 +6,41 @@ import (
 	"io"
 	"net"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
-const serverAddr = "127.0.0.1:7465"
+var serverAddr = "127.0.0.1:7465"
+
+const (
+	chunkSec       = 120
+	overlapSec     = 5
+	chunkThreshold = 120
+)
+
+func SetPort(port string) {
+	serverAddr = "127.0.0.1:" + port
+}
 
 func Transcribe(audioPath string) (string, error) {
-	// Convert to PCM using ffmpeg
-	pcmData, err := convertToPCM(audioPath)
+	duration, err := getAudioDuration(audioPath)
+	if err != nil {
+		return "", fmt.Errorf("get duration: %w", err)
+	}
+
+	if duration <= chunkThreshold {
+		return transcribeSingle(audioPath)
+	}
+
+	return transcribeChunked(audioPath, duration)
+}
+
+func transcribeSingle(audioPath string) (string, error) {
+	pcmData, err := convertToPCM(audioPath, 0, 0)
 	if err != nil {
 		return "", fmt.Errorf("convert audio: %w", err)
 	}
 
-	// Send to pink-whisper
 	text, err := sendToWhisper(pcmData)
 	if err != nil {
 		return "", fmt.Errorf("transcribe: %w", err)
@@ -27,17 +49,73 @@ func Transcribe(audioPath string) (string, error) {
 	return strings.TrimSpace(text), nil
 }
 
-func convertToPCM(audioPath string) ([]byte, error) {
-	// ffmpeg -i input -ar 16000 -ac 1 -f s16le -
-	cmd := exec.Command("ffmpeg",
-		"-i", audioPath,
-		"-ar", "16000",
-		"-ac", "1",
-		"-f", "s16le",
-		"-loglevel", "error",
-		"-",
+func transcribeChunked(audioPath string, duration float64) (string, error) {
+	var results []string
+	start := 0.0
+
+	for start < duration {
+		chunkDuration := float64(chunkSec)
+		if start+chunkDuration > duration {
+			chunkDuration = duration - start
+		}
+
+		pcmData, err := convertToPCM(audioPath, start, chunkDuration)
+		if err != nil {
+			return "", fmt.Errorf("convert chunk at %.0fs: %w", start, err)
+		}
+
+		text, err := sendToWhisper(pcmData)
+		if err != nil {
+			return "", fmt.Errorf("transcribe chunk at %.0fs: %w", start, err)
+		}
+
+		results = append(results, strings.TrimSpace(text))
+		start += float64(chunkSec - overlapSec)
+	}
+
+	return strings.Join(results, " "), nil
+}
+
+func getAudioDuration(audioPath string) (float64, error) {
+	cmd := exec.Command("ffprobe",
+		"-v", "error",
+		"-show_entries", "format=duration",
+		"-of", "default=noprint_wrappers=1:nokey=1",
+		audioPath,
 	)
 
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return 0, fmt.Errorf("ffprobe: %s", string(exitErr.Stderr))
+		}
+		return 0, err
+	}
+
+	duration, err := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse duration: %w", err)
+	}
+
+	return duration, nil
+}
+
+func convertToPCM(audioPath string, startSec, durationSec float64) ([]byte, error) {
+	args := []string{}
+
+	if startSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.2f", startSec))
+	}
+
+	args = append(args, "-i", audioPath)
+
+	if durationSec > 0 {
+		args = append(args, "-t", fmt.Sprintf("%.2f", durationSec))
+	}
+
+	args = append(args, "-ar", "16000", "-ac", "1", "-f", "s16le", "-loglevel", "error", "-")
+
+	cmd := exec.Command("ffmpeg", args...)
 	output, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -56,26 +134,22 @@ func sendToWhisper(pcmData []byte) (string, error) {
 	}
 	defer conn.Close()
 
-	// Send size (4 bytes LE)
 	sizeBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(sizeBytes, uint32(len(pcmData)))
 	if _, err := conn.Write(sizeBytes); err != nil {
 		return "", fmt.Errorf("send size: %w", err)
 	}
 
-	// Send PCM data
 	if _, err := conn.Write(pcmData); err != nil {
 		return "", fmt.Errorf("send audio: %w", err)
 	}
 
-	// Receive response size
 	respSizeBytes := make([]byte, 4)
 	if _, err := io.ReadFull(conn, respSizeBytes); err != nil {
 		return "", fmt.Errorf("read response size: %w", err)
 	}
 	respSize := binary.LittleEndian.Uint32(respSizeBytes)
 
-	// Receive text
 	textBytes := make([]byte, respSize)
 	if _, err := io.ReadFull(conn, textBytes); err != nil {
 		return "", fmt.Errorf("read response: %w", err)
@@ -90,13 +164,4 @@ func CheckFFmpeg() error {
 		return fmt.Errorf("ffmpeg not found in PATH")
 	}
 	return nil
-}
-
-func IsServerRunning() bool {
-	conn, err := net.Dial("tcp", serverAddr)
-	if err != nil {
-		return false
-	}
-	conn.Close()
-	return true
 }

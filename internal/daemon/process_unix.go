@@ -3,7 +3,6 @@
 package daemon
 
 import (
-	"os"
 	"os/exec"
 	"syscall"
 )
@@ -17,16 +16,4 @@ func gracefulKill(cmd *exec.Cmd) {
 		return
 	}
 	syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-}
-
-func killProcessByPid(pid int) error {
-	return syscall.Kill(-pid, syscall.SIGKILL)
-}
-
-func isProcessAlive(pid int) bool {
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return proc.Signal(syscall.Signal(0)) == nil
 }
