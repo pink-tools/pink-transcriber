@@ -18,6 +18,13 @@ const serviceName = "pink-transcriber"
 
 func main() {
 	core.LoadEnv(serviceName)
+
+	port := os.Getenv("WHISPER_PORT")
+	if port == "" {
+		port = "7465"
+	}
+	transcriber.SetPort(port)
+
 	whisperDir := bootstrap.GetWhisperDir()
 
 	core.Run(core.Config{
@@ -26,13 +33,10 @@ func main() {
 		Usage: `pink-transcriber - speech to text
 
 Usage:
-  pink-transcriber                 Start daemon (bootstrap + server)
+  pink-transcriber                 Start daemon
   pink-transcriber stop            Stop daemon
-  pink-transcriber status          Check if daemon is running
-  pink-transcriber transcribe FILE Transcribe audio file
-  pink-transcriber help            Show this help
-
-Supported formats: any audio format (converted via ffmpeg)`,
+  pink-transcriber status          Check if running
+  pink-transcriber transcribe FILE Transcribe audio file`,
 		Commands: map[string]core.Command{
 			"stop": {
 				Desc: "Stop daemon",
@@ -45,7 +49,7 @@ Supported formats: any audio format (converted via ffmpeg)`,
 				},
 			},
 			"status": {
-				Desc: "Check if daemon is running",
+				Desc: "Check if running",
 				Run: func(args []string) error {
 					if core.IsRunning(serviceName) {
 						fmt.Println("running")
@@ -66,14 +70,11 @@ Supported formats: any audio format (converted via ffmpeg)`,
 			},
 		},
 	}, func(ctx context.Context) error {
-		// Bootstrap whisper binary and model
 		if err := bootstrap.EnsureReady(); err != nil {
 			otel.Error(ctx, "bootstrap failed", otel.Attr{"error", err.Error()})
 			return err
 		}
-
-		// Run whisper server and wait for shutdown
-		return daemon.Run(ctx, whisperDir)
+		return daemon.Run(ctx, whisperDir, port)
 	})
 }
 
@@ -84,10 +85,6 @@ func runTranscribe(filePath string) error {
 
 	if err := transcriber.CheckFFmpeg(); err != nil {
 		return fmt.Errorf("ffmpeg not found")
-	}
-
-	if !transcriber.IsServerRunning() {
-		return fmt.Errorf("server not running")
 	}
 
 	text, err := transcriber.Transcribe(filePath)

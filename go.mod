@@ -2,12 +2,12 @@ module github.com/pink-tools/pink-transcriber
 
 go 1.25.4
 
-require (
-	github.com/pink-tools/pink-otel v1.6.0
-	golang.org/x/sys v0.39.0
-)
+require github.com/pink-tools/pink-otel v1.6.0
 
-require github.com/joho/godotenv v1.5.1 // indirect
+require (
+	github.com/joho/godotenv v1.5.1 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+)
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
