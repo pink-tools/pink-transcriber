@@ -5,21 +5,43 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 )
 
-var serverAddr = "127.0.0.1:7465"
-
 const (
 	chunkSec       = 120
 	overlapSec     = 5
 	chunkThreshold = 120
+
+	defaultLocalAddr  = "localhost:7465"
+	defaultRemoteAddr = "transcribe.pinkhaired.com:7465"
 )
 
-func SetPort(port string) {
-	serverAddr = "127.0.0.1:" + port
+func getLocalAddr() string {
+	if addr := os.Getenv("WHISPER_LOCAL_ADDR"); addr != "" {
+		return addr
+	}
+	return defaultLocalAddr
+}
+
+func getRemoteAddr() string {
+	if addr := os.Getenv("WHISPER_REMOTE_ADDR"); addr != "" {
+		return addr
+	}
+	return defaultRemoteAddr
+}
+
+func selectBackend() string {
+	localAddr := getLocalAddr()
+	conn, err := net.Dial("tcp", localAddr)
+	if err == nil {
+		conn.Close()
+		return localAddr
+	}
+	return getRemoteAddr()
 }
 
 func Transcribe(audioPath string) (string, error) {
@@ -28,20 +50,22 @@ func Transcribe(audioPath string) (string, error) {
 		return "", fmt.Errorf("get duration: %w", err)
 	}
 
+	backend := selectBackend()
+
 	if duration <= chunkThreshold {
-		return transcribeSingle(audioPath)
+		return transcribeSingle(audioPath, backend)
 	}
 
-	return transcribeChunked(audioPath, duration)
+	return transcribeChunked(audioPath, duration, backend)
 }
 
-func transcribeSingle(audioPath string) (string, error) {
+func transcribeSingle(audioPath, backend string) (string, error) {
 	pcmData, err := convertToPCM(audioPath, 0, 0)
 	if err != nil {
 		return "", fmt.Errorf("convert audio: %w", err)
 	}
 
-	text, err := sendToWhisper(pcmData)
+	text, err := sendToWhisper(pcmData, backend)
 	if err != nil {
 		return "", fmt.Errorf("transcribe: %w", err)
 	}
@@ -49,7 +73,7 @@ func transcribeSingle(audioPath string) (string, error) {
 	return strings.TrimSpace(text), nil
 }
 
-func transcribeChunked(audioPath string, duration float64) (string, error) {
+func transcribeChunked(audioPath string, duration float64, backend string) (string, error) {
 	var results []string
 	start := 0.0
 
@@ -64,7 +88,7 @@ func transcribeChunked(audioPath string, duration float64) (string, error) {
 			return "", fmt.Errorf("convert chunk at %.0fs: %w", start, err)
 		}
 
-		text, err := sendToWhisper(pcmData)
+		text, err := sendToWhisper(pcmData, backend)
 		if err != nil {
 			return "", fmt.Errorf("transcribe chunk at %.0fs: %w", start, err)
 		}
@@ -127,10 +151,10 @@ func convertToPCM(audioPath string, startSec, durationSec float64) ([]byte, erro
 	return output, nil
 }
 
-func sendToWhisper(pcmData []byte) (string, error) {
-	conn, err := net.Dial("tcp", serverAddr)
+func sendToWhisper(pcmData []byte, addr string) (string, error) {
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		return "", fmt.Errorf("connect: %w (is pink-whisper running?)", err)
+		return "", fmt.Errorf("connect to %s: %w", addr, err)
 	}
 	defer conn.Close()
 

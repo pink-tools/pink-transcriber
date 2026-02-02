@@ -2,7 +2,7 @@ module github.com/pink-tools/pink-transcriber
 
 go 1.25.4
 
-require github.com/pink-tools/pink-otel v1.7.0
+require github.com/pink-tools/pink-otel v1.7.0 // indirect
 
 require (
 	github.com/joho/godotenv v1.5.1 // indirect
