@@ -36,21 +36,29 @@ func getRemoteAddr() string {
 
 func selectBackend() string {
 	localAddr := getLocalAddr()
+	fmt.Fprintf(os.Stderr, "[debug] trying local: %s\n", localAddr)
 	conn, err := net.Dial("tcp", localAddr)
 	if err == nil {
 		conn.Close()
+		fmt.Fprintf(os.Stderr, "[debug] using local\n")
 		return localAddr
 	}
-	return getRemoteAddr()
+	fmt.Fprintf(os.Stderr, "[debug] local failed: %v\n", err)
+	remoteAddr := getRemoteAddr()
+	fmt.Fprintf(os.Stderr, "[debug] using remote: %s\n", remoteAddr)
+	return remoteAddr
 }
 
 func Transcribe(audioPath string) (string, error) {
+	fmt.Fprintf(os.Stderr, "[debug] getting duration...\n")
 	duration, err := getAudioDuration(audioPath)
 	if err != nil {
 		return "", fmt.Errorf("get duration: %w", err)
 	}
+	fmt.Fprintf(os.Stderr, "[debug] duration: %.2fs\n", duration)
 
 	backend := selectBackend()
+	fmt.Fprintf(os.Stderr, "[debug] backend selected: %s\n", backend)
 
 	if duration <= chunkThreshold {
 		return transcribeSingle(audioPath, backend)
@@ -152,11 +160,13 @@ func convertToPCM(audioPath string, startSec, durationSec float64) ([]byte, erro
 }
 
 func sendToWhisper(pcmData []byte, addr string) (string, error) {
+	fmt.Fprintf(os.Stderr, "[debug] connecting to %s...\n", addr)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return "", fmt.Errorf("connect to %s: %w", addr, err)
 	}
 	defer conn.Close()
+	fmt.Fprintf(os.Stderr, "[debug] connected, sending %d bytes...\n", len(pcmData))
 
 	sizeBytes := make([]byte, 4)
 	binary.LittleEndian.PutUint32(sizeBytes, uint32(len(pcmData)))
@@ -167,17 +177,20 @@ func sendToWhisper(pcmData []byte, addr string) (string, error) {
 	if _, err := conn.Write(pcmData); err != nil {
 		return "", fmt.Errorf("send audio: %w", err)
 	}
+	fmt.Fprintf(os.Stderr, "[debug] sent, waiting for response...\n")
 
 	respSizeBytes := make([]byte, 4)
 	if _, err := io.ReadFull(conn, respSizeBytes); err != nil {
 		return "", fmt.Errorf("read response size: %w", err)
 	}
 	respSize := binary.LittleEndian.Uint32(respSizeBytes)
+	fmt.Fprintf(os.Stderr, "[debug] response size: %d bytes\n", respSize)
 
 	textBytes := make([]byte, respSize)
 	if _, err := io.ReadFull(conn, textBytes); err != nil {
 		return "", fmt.Errorf("read response: %w", err)
 	}
+	fmt.Fprintf(os.Stderr, "[debug] done\n")
 
 	return string(textBytes), nil
 }
