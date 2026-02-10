@@ -22,8 +22,8 @@ Usage:
   pink-transcriber transcribe FILE  Transcribe audio file
 
 Environment:
-  WHISPER_LOCAL_ADDR   Local backend (default: localhost:7465)
-  WHISPER_REMOTE_ADDR  Remote backend (default: transcribe.pinkhaired.com:7465)`,
+  WHISPER_LOCAL_ADDR      Local whisper (default: localhost:7465)
+  TRANSCRIBE_SERVER_URL   HTTP fallback (default: https://transcribe.pinkhaired.com/transcribe)`,
 		Commands: map[string]core.Command{
 			"transcribe": {
 				Desc: "Transcribe audio file",

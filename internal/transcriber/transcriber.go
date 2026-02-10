@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
@@ -17,7 +18,7 @@ const (
 	chunkThreshold = 120
 
 	defaultLocalAddr  = "localhost:7465"
-	defaultRemoteAddr = "transcribe.pinkhaired.com:7465"
+	defaultServerURL  = "https://transcribe.pinkhaired.com/transcribe"
 )
 
 func getLocalAddr() string {
@@ -27,36 +28,67 @@ func getLocalAddr() string {
 	return defaultLocalAddr
 }
 
-func getRemoteAddr() string {
-	if addr := os.Getenv("WHISPER_REMOTE_ADDR"); addr != "" {
-		return addr
+func getServerURL() string {
+	if url := os.Getenv("TRANSCRIBE_SERVER_URL"); url != "" {
+		return url
 	}
-	return defaultRemoteAddr
+	return defaultServerURL
 }
 
-func selectBackend() string {
-	localAddr := getLocalAddr()
-	conn, err := net.Dial("tcp", localAddr)
-	if err == nil {
-		conn.Close()
-		return localAddr
+func localWhisperAvailable() bool {
+	conn, err := net.Dial("tcp", getLocalAddr())
+	if err != nil {
+		return false
 	}
-	return getRemoteAddr()
+	conn.Close()
+	return true
 }
 
 func Transcribe(audioPath string) (string, error) {
+	if localWhisperAvailable() {
+		return transcribeLocal(audioPath)
+	}
+	return sendToServer(audioPath, getServerURL())
+}
+
+func transcribeLocal(audioPath string) (string, error) {
 	duration, err := getAudioDuration(audioPath)
 	if err != nil {
 		return "", fmt.Errorf("get duration: %w", err)
 	}
 
-	backend := selectBackend()
+	backend := getLocalAddr()
 
 	if duration <= chunkThreshold {
 		return transcribeSingle(audioPath, backend)
 	}
 
 	return transcribeChunked(audioPath, duration, backend)
+}
+
+func sendToServer(audioPath, url string) (string, error) {
+	f, err := os.Open(audioPath)
+	if err != nil {
+		return "", fmt.Errorf("open file: %w", err)
+	}
+	defer f.Close()
+
+	resp, err := http.Post(url, "application/octet-stream", f)
+	if err != nil {
+		return "", fmt.Errorf("post to server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("server error %d: %s", resp.StatusCode, string(body))
+	}
+
+	return strings.TrimSpace(string(body)), nil
 }
 
 func transcribeSingle(audioPath, backend string) (string, error) {
@@ -183,9 +215,11 @@ func sendToWhisper(pcmData []byte, addr string) (string, error) {
 }
 
 func CheckFFmpeg() error {
-	_, err := exec.LookPath("ffmpeg")
-	if err != nil {
-		return fmt.Errorf("ffmpeg not found in PATH")
+	if localWhisperAvailable() {
+		_, err := exec.LookPath("ffmpeg")
+		if err != nil {
+			return fmt.Errorf("ffmpeg not found in PATH")
+		}
 	}
 	return nil
 }
