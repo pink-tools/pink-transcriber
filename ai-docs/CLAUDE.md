@@ -51,7 +51,7 @@ pink-transcriber/
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    bootstrap package                         │
-│  1. Check pink-whisper binary exists                        │
+│  1. Check whisper-server binary exists                       │
 │  2. Download from GitHub releases if missing                │
 │  3. Check model exists                                      │
 │  4. Download from HuggingFace if missing (~3GB)             │
@@ -61,7 +61,7 @@ pink-transcriber/
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                     daemon package                           │
-│  1. Exec: pink-whisper -m <model> -p 7465                   │
+│  1. Exec: whisper-server -m <model> -p 7465                  │
 │  2. Write PID to ~/pink-tools/pink-transcriber/*.pid        │
 │  3. Wait for TCP port 7465 to accept connections            │
 │  4. Handle SIGINT for clean shutdown                        │
@@ -94,7 +94,7 @@ pink-transcriber help            # Show help
 ├── pink-transcriber/
 │   └── pink-transcriber.pid    # Daemon PID file
 └── pink-whisper/
-    ├── pink-whisper            # Server binary
+    ├── whisper-server          # Server binary
     └── ggml-large-v3.bin       # Whisper model (~3GB)
 ```
 
@@ -123,7 +123,7 @@ pink-transcriber help            # Show help
 ### Start
 1. Check not already running (via PID file)
 2. Bootstrap dependencies
-3. Exec: `pink-whisper -m ggml-large-v3.bin -p 7465`
+3. Exec: `whisper-server -m ggml-large-v3.bin -p 7465`
 4. Set process group (Unix)
 5. Write PID file
 6. Wait for TCP port (max 10s, 100ms intervals)
