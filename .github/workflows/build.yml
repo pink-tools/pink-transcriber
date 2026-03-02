@@ -14,6 +14,10 @@ jobs:
             goos: darwin
             goarch: arm64
             output: pink-transcriber-darwin-arm64
+          - name: build-macos-intel
+            goos: darwin
+            goarch: amd64
+            output: pink-transcriber-darwin-amd64
           - name: build-linux
             goos: linux
             goarch: amd64
