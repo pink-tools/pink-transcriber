@@ -13,7 +13,7 @@ var version = "dev"
 const serviceName = "pink-transcriber"
 
 func main() {
-	core.Run(core.Config{
+	cfg := core.Config{
 		Name:    serviceName,
 		Version: version,
 		Usage: `pink-transcriber - speech to text
@@ -35,7 +35,9 @@ Environment:
 				},
 			},
 		},
-	}, nil)
+	}
+	core.HandleActions(&cfg, nil, nil)
+	core.Run(cfg, nil)
 }
 
 func runTranscribe(filePath string) error {
