@@ -1,12 +1,13 @@
 # pink-transcriber
 
-Speech-to-text via whisper.cpp (Whisper Large V3)
+Speech-to-text CLI via whisper.cpp (Whisper Large V3).
 
 ```bash
-/Users/pink-tools/pink-transcriber/pink-transcriber                 # Start daemon (bootstraps on first run)
-/Users/pink-tools/pink-transcriber/pink-transcriber transcribe FILE # Transcribe audio file
-/Users/pink-tools/pink-transcriber/pink-transcriber status          # Check if running
-/Users/pink-tools/pink-transcriber/pink-transcriber stop            # Stop daemon
+pink-transcriber transcribe FILE   # Transcribe audio file
 ```
+
+**Environment:**
+- `WHISPER_LOCAL_ADDR` — local whisper server (default: `localhost:7465`)
+- `TRANSCRIBE_SERVER_URL` — HTTP fallback (default: `https://transcribe.pinkhaired.com/transcribe`)
 
 **Data:** `/Users/pink-tools/pink-transcriber/`, `/Users/pink-tools/pink-whisper/` (server + model)
