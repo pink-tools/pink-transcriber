@@ -17,8 +17,8 @@ const (
 	overlapSec     = 5
 	chunkThreshold = 120
 
-	defaultLocalAddr  = "localhost:7465"
-	defaultServerURL  = "https://transcribe.pinkhaired.com/transcribe"
+	defaultLocalAddr = "localhost:7465"
+	defaultServerURL = "https://transcribe.pinkhaired.com/transcribe"
 )
 
 func getLocalAddr() string {
@@ -48,7 +48,7 @@ func Transcribe(audioPath string) (string, error) {
 	if localWhisperAvailable() {
 		return transcribeLocal(audioPath)
 	}
-	return sendToServer(audioPath, getServerURL())
+	return transcribeRemote(audioPath, getServerURL())
 }
 
 func transcribeLocal(audioPath string) (string, error) {
@@ -66,7 +66,44 @@ func transcribeLocal(audioPath string) (string, error) {
 	return transcribeChunked(audioPath, duration, backend)
 }
 
-func sendToServer(audioPath, url string) (string, error) {
+func transcribeRemote(audioPath, url string) (string, error) {
+	duration, err := getAudioDuration(audioPath)
+	if err != nil {
+		return "", fmt.Errorf("get duration: %w", err)
+	}
+
+	if duration <= chunkThreshold {
+		return postFile(audioPath, url)
+	}
+
+	var results []string
+	start := 0.0
+
+	for start < duration {
+		chunkDuration := float64(chunkSec)
+		if start+chunkDuration > duration {
+			chunkDuration = duration - start
+		}
+
+		tmp, err := extractChunk(audioPath, start, chunkDuration)
+		if err != nil {
+			return "", fmt.Errorf("extract chunk at %.0fs: %w", start, err)
+		}
+
+		text, err := postFile(tmp, url)
+		os.Remove(tmp)
+		if err != nil {
+			return "", fmt.Errorf("transcribe chunk at %.0fs: %w", start, err)
+		}
+
+		results = append(results, strings.TrimSpace(text))
+		start += float64(chunkSec - overlapSec)
+	}
+
+	return strings.Join(results, " "), nil
+}
+
+func postFile(audioPath, url string) (string, error) {
 	f, err := os.Open(audioPath)
 	if err != nil {
 		return "", fmt.Errorf("open file: %w", err)
@@ -89,6 +126,32 @@ func sendToServer(audioPath, url string) (string, error) {
 	}
 
 	return strings.TrimSpace(string(body)), nil
+}
+
+func extractChunk(audioPath string, startSec, durationSec float64) (string, error) {
+	tmp, err := os.CreateTemp("", "chunk-*.ogg")
+	if err != nil {
+		return "", err
+	}
+	tmp.Close()
+
+	args := []string{"-y"}
+	if startSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.2f", startSec))
+	}
+	args = append(args, "-i", audioPath)
+	if durationSec > 0 {
+		args = append(args, "-t", fmt.Sprintf("%.2f", durationSec))
+	}
+	args = append(args, "-vn", "-loglevel", "error", tmp.Name())
+
+	cmd := exec.Command("ffmpeg", args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		os.Remove(tmp.Name())
+		return "", fmt.Errorf("ffmpeg: %s", string(output))
+	}
+
+	return tmp.Name(), nil
 }
 
 func transcribeSingle(audioPath, backend string) (string, error) {
@@ -215,11 +278,9 @@ func sendToWhisper(pcmData []byte, addr string) (string, error) {
 }
 
 func CheckFFmpeg() error {
-	if localWhisperAvailable() {
-		_, err := exec.LookPath("ffmpeg")
-		if err != nil {
-			return fmt.Errorf("ffmpeg not found in PATH")
-		}
+	_, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return fmt.Errorf("ffmpeg not found in PATH")
 	}
 	return nil
 }
