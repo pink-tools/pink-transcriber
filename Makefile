@@ -6,3 +6,6 @@ build:
 
 install: build
 	cp pink-transcriber $(INSTALL_DIR)/pink-transcriber
+
+setup:
+	git config core.hooksPath .githooks

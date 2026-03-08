@@ -1,12 +1,16 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 
 	"github.com/pink-tools/pink-core"
 	"github.com/pink-tools/pink-transcriber/internal/transcriber"
 )
+
+//go:embed context.md
+var claudeContext string
 
 var version = "dev"
 
@@ -16,6 +20,7 @@ func main() {
 	cfg := core.Config{
 		Name:    serviceName,
 		Version: version,
+		Context: claudeContext,
 		Usage: `pink-transcriber - speech to text
 
 Usage:
